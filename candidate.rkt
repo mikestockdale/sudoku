@@ -1,10 +1,11 @@
 #lang racket/base
-(provide easy-1 medium-1)
+
+(provide single-values assign-cell-values set-value board->string easy-1 medium-1)
 (require racket/format racket/list racket/vector srfi/13)
 (require "testing.rkt")
 (module+ test (require rackunit))
 
-;@title{Candidates}
+;@title[#:tag "candidates"]{Candidates}
 ;@margin-note{Source code at @hyperlink["https://github.com/mikestockdale/sudoku/blob/main/candidate.rkt" "candidate.rkt"]}
 
 ;I have an idea of an integer for each cell on the board, using a bit for each candidate value from one to nine.
@@ -14,7 +15,7 @@
 (define (empty-board) (make-vector 81 511))
 
 ;When a cell has been assigned a value, it will have only a single bit set.
-;This will be one of these @bold{single values}.
+;This will be one of these @elemtag["single-values"]{@bold{single values}}.
 
 (define single-values #(1 2 4 8 16 32 64 128 256))
 
@@ -137,14 +138,16 @@
   (define (apply-mask target-cell mask)
     (let* ([original-value (vector-ref board target-cell)]
            [new-value (clear-bit mask original-value)])
-      (unless (= new-value original-value)
-        (vector-set! board target-cell new-value)
-        (when (vector-member new-value single-values)
-          (set-value board target-cell new-value)))))   
+      (and (> new-value 0)
+           (unless (= new-value original-value)
+             (vector-set! board target-cell new-value)
+             (when (vector-member new-value single-values)
+               (set-value board target-cell new-value))))))   
   (vector-set! board position bit-value)
-  (for ([related-cell (in-list (vector-ref related-cells position))])
-    (apply-mask related-cell bit-value))
-  board)
+  (and
+   (for/and ([related-cell (in-list (vector-ref related-cells position))])
+     (apply-mask related-cell bit-value))
+   board))
 
 ;As we @bold{assign cell values}, the number of candidates for a related cell may be reduced to just one.
 ;This means we have derived the value for that cell, and can update its related cells recursively.
@@ -160,36 +163,40 @@
                 "123456789\n456¹c7¹c7¹c7°07°07°07\n789°07°07°07°3f°3f°3f\n"
                 (xsubstring "¹b6¹6d°db¹f7¹ef¹df¹bf¹7f°ff\n" 0 168))))
 
+;If a conflicting assignment is made, the result is false.
+
+(test-case:
+ "conflict"
+ (check-false (assign-cell-values "11")))
+
 (define (assign-cell-values cells)
   (let ([board (empty-board)])
-    (for ([i (string-length cells)] [value cells])
-      (when (char-numeric? value)
-        (assign-cell-value board i (- (char->integer value) (char->integer #\0)))))
-    board))
+    (and
+     (for/and ([i (string-length cells)] [value cells] #:when (char-numeric? value))
+       (assign-cell-value board i (- (char->integer value) (char->integer #\0))))
+     board)))
 
 ;This is enough to solve some easy puzzles.
 
-(define (easy-1)
-  (board->string
-   (assign-cell-values
-    "43 618 5 2   3 84 7 1 4 6  894     2  3  65    28 1  4928    3  4  83 15   967  8")))
+(define easy-1
+  (assign-cell-values
+   "43 618 5 2   3 84 7 1 4 6  894     2  3  65    28 1  4928    3  4  83 15   967  8"))
 
 ;@(require scribble/example)
 ;@(define eg-eval (make-base-eval))
 ;@examples[#:hidden #:eval eg-eval (require "../sudoku/candidate.rkt")]
 ;@examples[
 ;#:eval eg-eval #:label ""
-;(display (easy-1))
+;(display (board->string easy-1))
 ;]
 
 ;Medium puzzles will require more work to solve.
 
-(define (medium-1)
-  (board->string
-   (assign-cell-values
-    " 49   1 6  1 8     3   4 272 54783 13 41 69756 7 9     7    2    32 1      83  19")))
+(define medium-1
+  (assign-cell-values
+   " 49   1 6  1 8     3   4 272 54783 13 41 69756 7 9     7    2    32 1      83  19"))
 
 ;@examples[
 ;#:eval eg-eval #:label ""
-;(display (medium-1))
+;(display (board->string medium-1))
 ;]
